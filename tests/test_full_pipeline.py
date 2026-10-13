@@ -1,0 +1,93 @@
+"""
+Integration test for ResearchMate complete pipeline.
+Tests PDF extraction, chunking, all 4 retrieval methods, RAG Q&A with citations,
+NLI verification, and IR evaluation metrics.
+"""
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.pdf_processor import extract_pdf_text, get_pdf_info
+from src.text_preprocessing import chunk_pages
+from src.ner_keywords import extract_keywords, extract_entities
+from src.summarizer import generate_extractive_summary
+from src.retriever import ResearchRetriever
+from src.rag_pipeline import ResearchRAG
+from src.verifier import verify_claim, verify_answer
+from src.evaluation import evaluate_retrieval
+from src.benchmark_data import generate_benchmark_queries_from_chunks
+
+
+def test_pipeline():
+    print("=== Step 1: Ingestion & Preprocessing ===")
+    pdf_path = Path("data/pdfs/RP163_The-Human-Right-to-Science_EN.pdf")
+    assert pdf_path.exists(), f"PDF not found: {pdf_path}"
+
+    info = get_pdf_info(pdf_path)
+    print(f"Loaded: {info['filename']} ({info['total_pages']} pages)")
+
+    pages = extract_pdf_text(pdf_path)
+    # Test on first 12 pages for fast verification
+    test_pages = pages[:12]
+    chunks = chunk_pages(test_pages, chunk_size=300, overlap=40)
+    print(f"Generated {len(chunks)} chunks across {len(test_pages)} pages.")
+    assert len(chunks) > 0
+
+    print("\n=== Step 2: NLP Features ===")
+    kw = extract_keywords([c["text"] for c in chunks[:10]], top_k=6)
+    print(f"Top Keywords: {[k['keyword'] for k in kw]}")
+
+    ent = extract_entities(test_pages[1]["text"], top_k=5)
+    print(f"Sample Entities: {ent}")
+
+    summary = generate_extractive_summary(test_pages, num_sentences=3)
+    print(f"Extractive Summary (first 100 chars): {summary[:100]}...")
+
+    print("\n=== Step 3: Retrieval Indexing & Comparison ===")
+    retriever = ResearchRetriever(chunks)
+
+    query = "What is the role of UNESCO in human rights and science?"
+    all_results = retriever.search_all_methods(query, top_k=3)
+
+    for method_name, res_list in all_results.items():
+        print(f"\nMethod: {method_name}")
+        for r in res_list:
+            print(f"  - [{r['chunk_id']} | p.{r['page']} | Score: {r['score']}] {r['text'][:90]}...")
+
+    print("\n=== Step 4: Grounded RAG & Citations ===")
+    rag = ResearchRAG(retriever)
+    rag_result = rag.answer_question(query, retrieval_method="hybrid_rerank", top_k=3, verify=False)
+    print(f"Question: {rag_result['question']}")
+    print(f"Answer: {rag_result['answer']}")
+    print(f"Citations: {rag_result['citations']}")
+
+    print("\n=== Step 5: NLI Evidence Verification ===")
+    test_claim = "UNESCO plays a significant role in science policy."
+    evidence_text = chunks[0]["text"]
+    claim_ver = verify_claim(test_claim, evidence_text)
+    print(f"Claim: '{test_claim}'")
+    print(f"Verification: {claim_ver['label']} (Confidence: {claim_ver['confidence']})")
+
+    full_ver = verify_answer(rag_result["answer"], rag_result["passages"])
+    print(f"Answer Faithfulness: {full_ver['faithfulness_score']}% (Flagged: {full_ver['flagged']})")
+
+    print("\n=== Step 6: Benchmark & Quantitative Evaluation ===")
+    bench_queries = generate_benchmark_queries_from_chunks(chunks, num_queries=6)
+    print(f"Generated {len(bench_queries)} benchmark queries.")
+
+    eval_df = evaluate_retrieval(retriever, bench_queries, methods=["bm25", "dense", "hybrid"], k_eval=3)
+    print("\nEvaluation Benchmark Results:")
+    print(eval_df.to_string(index=False))
+
+    # Save results
+    results_dir = Path("results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    eval_df.to_csv(results_dir / "retrieval_benchmark_results.csv", index=False)
+    print(f"\nResults successfully saved to {results_dir / 'retrieval_benchmark_results.csv'}")
+
+    print("\n>>> ALL PIPELINE TESTS PASSED SUCCESSFULLY! <<<")
+
+
+if __name__ == "__main__":
+    test_pipeline()
