@@ -8,6 +8,12 @@ import sys
 from pathlib import Path
 import time
 import json
+import torch
+try:
+    torch.classes.__path__ = []
+except Exception:
+    pass
+
 import pandas as pd
 import streamlit as st
 
