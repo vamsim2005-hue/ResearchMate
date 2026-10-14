@@ -16,7 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from src.pdf_processor import extract_pdf_text, get_pdf_info
 from src.text_preprocessing import chunk_pages
-from src.ner_keywords import extract_keywords, extract_entities
+from src.ner_keywords import extract_keywords, extract_entities, extract_entities_transformer
+from src.classifier import classify_paper
 from src.summarizer import generate_extractive_summary, generate_abstractive_summary
 from src.retriever import ResearchRetriever
 from src.rag_pipeline import ResearchRAG
@@ -43,6 +44,27 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.2rem;
     }
+    .hf-badge {
+        display: inline-block;
+        background-color: #FEF3C7;
+        color: #92400E;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border: 1px solid #FCD34D;
+        margin-bottom: 8px;
+    }
+    .model-pill {
+        background-color: #EEF2FF;
+        color: #4338CA;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border: 1px solid #C7D2FE;
+    }
+
     .sub-header {
         color: #4B5563;
         font-size: 1.05rem;
@@ -181,6 +203,20 @@ with st.sidebar:
     if st.session_state.chunks:
         st.info(f"📊 **Active Corpus:**\n- Papers: {len(st.session_state.pdf_data)}\n- Total Chunks: {len(st.session_state.chunks)}")
 
+    st.markdown("---")
+    with st.expander("🤗 Hugging Face Models Active", expanded=True):
+        st.markdown("""
+        **Pretrained Models Powering ResearchMate:**
+        - 🏷️ **Token NER:** `dslim/bert-base-NER`
+        - 🎯 **Zero-Shot:** `nli-deberta-v3-small`
+        - 💡 **Extractive QA:** `distilbert-squad`
+        - 📝 **Summarization:** `distilbart-cnn-12-6`
+        - 🛡️ **NLI Verifier:** `nli-deberta-v3-small`
+        - 🧠 **Dense Embeddings:** `all-MiniLM-L6-v2`
+        - ⚡ **Reranker:** `ms-marco-MiniLM-L-6-v2`
+        """)
+
+
 
 # Header
 st.markdown('<div class="main-header">ResearchMate: Intelligent Research Paper Analyzer</div>', unsafe_allow_html=True)
@@ -223,18 +259,43 @@ with tabs[0]:
 
         st.markdown("---")
 
+        # Zero-Shot Transformer Paper Classification
+        st.markdown("### 🎯 Zero-Shot Academic Classification")
+        st.caption("Powered by Pretrained Hugging Face DeBERTa (`cross-encoder/nli-deberta-v3-small`)")
+
+        class_cache_key = f"classification_{selected_paper}"
+        if class_cache_key not in st.session_state:
+            with st.spinner("Classifying paper discipline & methodology with Hugging Face Zero-Shot DeBERTa..."):
+                st.session_state[class_cache_key] = classify_paper(pages)
+
+        clf_data = st.session_state[class_cache_key]
+
+        c_clf1, c_clf2 = st.columns(2)
+        with c_clf1:
+            st.markdown(f"**Primary Discipline:** `{clf_data['primary_discipline']}`")
+            st.progress(clf_data['discipline_confidence'])
+            st.caption(f"Confidence: {clf_data['discipline_confidence']:.1%}")
+
+        with c_clf2:
+            st.markdown(f"**Research Methodology:** `{clf_data['primary_methodology']}`")
+            st.progress(clf_data['methodology_confidence'])
+            st.caption(f"Confidence: {clf_data['methodology_confidence']:.1%}")
+
+        st.markdown("---")
+
         c_left, c_right = st.columns([1, 1])
 
         with c_left:
             st.markdown("#### 📝 Executive Paper Summary")
+            st.markdown('<span class="hf-badge">🤗 Hugging Face distilbart-cnn-12-6</span>', unsafe_allow_html=True)
             summary_type = st.radio("Summary Mode:", ["Fast Extractive", "Neural Abstractive (DistilBART)"], horizontal=True)
 
             if summary_type == "Fast Extractive":
                 extractive_sum = generate_extractive_summary(pages, num_sentences=4)
                 st.write(extractive_sum)
             else:
-                with st.spinner("Generating abstractive summary..."):
-                    first_text = " ".join([p["text"] for p in pages[:2]])
+                with st.spinner("Generating abstractive summary with DistilBART..."):
+                    first_text = " ".join([p["text"] for p in pages[:3]])
                     abstractive_sum = generate_abstractive_summary(first_text)
                     st.write(abstractive_sum)
 
@@ -245,9 +306,20 @@ with tabs[0]:
                 st.dataframe(kw_df, use_container_width=True, hide_index=True)
 
         with c_right:
-            st.markdown("#### 🔬 Named Entities (spaCy)")
-            all_text_sample = " ".join([p["text"] for p in pages[:5]])
-            entities = extract_entities(all_text_sample, top_k=15)
+            st.markdown("#### 🔬 Named Entities Recognition")
+            ner_mode = st.radio(
+                "NER Model:",
+                ["🤗 Pretrained Transformer (dslim/bert-base-NER)", "spaCy (Statistical)"],
+                horizontal=True
+            )
+
+            all_text_sample = " ".join([p["text"] for p in pages[:4]])
+            if "Transformer" in ner_mode:
+                with st.spinner("Extracting entities with Hugging Face BERT-NER..."):
+                    entities = extract_entities_transformer(all_text_sample, top_k=15)
+            else:
+                entities = extract_entities(all_text_sample, top_k=15, method="spacy")
+
             if entities:
                 ent_df = pd.DataFrame(entities)
                 st.dataframe(ent_df, use_container_width=True, hide_index=True)
@@ -259,6 +331,7 @@ with tabs[0]:
             sel_page_num = st.selectbox("Select Page Number:", page_nums)
             chosen_page_text = next((p["text"] for p in pages if p["page"] == sel_page_num), "")
             st.text_area("Page Text Preview", chosen_page_text, height=220)
+
 
 
 # ==========================================================
@@ -304,7 +377,7 @@ with tabs[2]:
     st.subheader("Citation-Grounded Question Answering & NLI Hallucination Verification")
     st.caption("Answers are constrained strictly to retrieved paper passages, with exact page citations and claim-by-claim verification.")
 
-    qa_col1, qa_col2 = st.columns([3, 1])
+    qa_col1, qa_col2, qa_col3 = st.columns([2.5, 1.2, 1.3])
     with qa_col1:
         question_input = st.text_input(
             "Ask a specific question about the paper(s):",
@@ -321,6 +394,16 @@ with tabs[2]:
                 "bm25": "BM25 (Keyword Lexical)"
             }[x]
         )
+    with qa_col3:
+        engine_choice = st.selectbox(
+            "QA Engine:",
+            ["hf_transformer", "synthesis", "neural_llm"],
+            format_func=lambda x: {
+                "hf_transformer": "🤗 HF Transformer (DistilBERT SQuAD)",
+                "synthesis": "⚡ Sentence Synthesizer",
+                "neural_llm": "🤖 Generative Causal LM"
+            }[x]
+        )
 
     verify_claims_toggle = st.checkbox("Run NLI Evidence Verification (DeBERTa)", value=True)
 
@@ -330,13 +413,34 @@ with tabs[2]:
             result = rag.answer_question(
                 question=question_input,
                 retrieval_method=method_choice,
+                engine=engine_choice,
                 top_k=3,
                 verify=verify_claims_toggle
             )
 
         st.markdown("---")
         st.markdown("### 📝 Synthesized Academic Answer")
+        
+        # Display engine badge & confidence if available
+        meta = result.get("qa_metadata", {})
+        model_name = meta.get("model", "Hugging Face Transformer")
+        conf = meta.get("confidence", 0.0)
+        span = meta.get("extracted_span", "")
+        
+        c_badge1, c_badge2 = st.columns([1, 1])
+        with c_badge1:
+            st.markdown(f'<span class="hf-badge">🤖 Engine: {model_name}</span>', unsafe_allow_html=True)
+        with c_badge2:
+            if conf > 0:
+                st.markdown(f'<span class="model-pill">🎯 Span Confidence: {conf:.1%}</span>', unsafe_allow_html=True)
+
         st.markdown(f"> {result['answer']}")
+
+        if span:
+            with st.expander("🔍 Extracted Evidence Span Details"):
+                st.markdown(f"**Exact Span:** `{span}`")
+                st.markdown(f"**Confidence:** `{conf:.2%}`")
+                st.markdown(f"**Passage Index:** `[E{meta.get('best_passage_idx', 1)}]`")
 
         # Citations section
         st.markdown("#### 📚 Supporting Evidence Citations")
@@ -347,6 +451,7 @@ with tabs[2]:
                     st.write(cit["snippet"])
         else:
             st.info("No explicit passage tags in synthesized response.")
+
 
         # Verification section
         if result["verification"]:

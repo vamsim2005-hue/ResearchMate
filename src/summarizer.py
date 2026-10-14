@@ -58,33 +58,74 @@ def generate_extractive_summary(pages: List[Dict[str, Any]], num_sentences: int 
     return " ".join(ordered)
 
 
-def generate_abstractive_summary(text: str, max_length: int = 150, min_length: int = 40) -> str:
-    """
-    Transformer-based abstractive summarization using DistilBART.
-    Falls back to extractive summary if model fails or cannot be loaded.
-    """
-    global _abstractive_pipeline
-    try:
-        from transformers import pipeline
-        import torch
+_summarizer_tokenizer = None
+_summarizer_model = None
+DEFAULT_SUMMARIZATION_MODEL = "sshleifer/distilbart-cnn-12-6"
 
-        if _abstractive_pipeline is None:
-            device = 0 if torch.cuda.is_available() else -1
-            _abstractive_pipeline = pipeline(
-                "summarization",
-                model="sshleifer/distilbart-cnn-12-6",
-                device=device
+
+def get_abstractive_model(model_name: str = DEFAULT_SUMMARIZATION_MODEL):
+    """Lazily load Hugging Face pretrained Seq2Seq summarization model."""
+    global _summarizer_tokenizer, _summarizer_model
+    if _summarizer_model is None:
+        from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+        import torch
+        _summarizer_tokenizer = AutoTokenizer.from_pretrained(model_name)
+        _summarizer_model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        _summarizer_model.eval()
+        if torch.cuda.is_available():
+            _summarizer_model = _summarizer_model.cuda()
+    return _summarizer_tokenizer, _summarizer_model
+
+
+def generate_abstractive_summary(
+    text: str,
+    max_length: int = 150,
+    min_length: int = 40,
+    model_name: str = DEFAULT_SUMMARIZATION_MODEL
+) -> str:
+    """
+    Transformer-based abstractive summarization using Hugging Face pretrained models
+    (e.g., sshleifer/distilbart-cnn-12-6 or facebook/bart-large-cnn).
+    Properly handles token truncation and fallback.
+    """
+    if not text or not text.strip():
+        return "No text available for abstractive summarization."
+
+    try:
+        import torch
+        tokenizer, model = get_abstractive_model(model_name)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Tokenize with proper max_length truncation
+        inputs = tokenizer(
+            text,
+            max_length=1024,
+            truncation=True,
+            return_tensors="pt"
+        )
+        if device == "cuda":
+            inputs = {k: v.cuda() for k, v in inputs.items()}
+
+        with torch.no_grad():
+            summary_ids = model.generate(
+                inputs["input_ids"],
+                max_length=max_length,
+                min_length=min_length,
+                num_beams=2,
+                length_penalty=1.0,
+                early_stopping=True,
+                no_repeat_ngram_size=3
             )
 
-        truncated = text[:3000]
-        res = _abstractive_pipeline(
-            truncated,
-            max_length=max_length,
-            min_length=min_length,
-            do_sample=False
-        )
-        return res[0]["summary_text"].strip()
+        summary_text = tokenizer.decode(summary_ids[0], skip_special_tokens=True).strip()
+        if summary_text:
+            return summary_text
+        else:
+            raise ValueError("Empty summary produced by transformer.")
+
     except Exception as e:
-        # Fallback to simple extractive snippet
+        # Fallback to high-scoring extractive sentences
         sentences = re.split(r'(?<=[.!?])\s+', text)
-        return " ".join([s.strip() for s in sentences[:4] if len(s.strip()) > 20])
+        valid = [s.strip() for s in sentences if len(s.strip()) > 25]
+        return " ".join(valid[:4]) if valid else text[:250].strip()
+

@@ -3,35 +3,19 @@
 
 **ResearchMate** is an end-to-end NLP and Retrieval-Augmented Generation (RAG) platform designed for rigorous academic paper analysis. Beyond standard chat interfaces, ResearchMate features an experimental Information Retrieval (IR) benchmarking engine and a post-generation Natural Language Inference (NLI) evidence verifier that flags unsupported assertions.
 
----
+---## 🌟 Key Capabilities Powered by Pretrained Hugging Face Transformers
 
-## 🌟 Key Capabilities
+ResearchMate leverages specialized, state-of-the-art pretrained transformer models from Hugging Face for each stage of scientific document understanding:
 
-1. **Academic Provenance Preservation:**
-   - Multi-column research paper extraction using PyMuPDF (`pymupdf`).
-   - Intra-page chunking ensures citations strictly retain exact document names and page numbers (`[Doc, Page, Chunk]`).
-
-2. **Multi-Strategy Retrieval Engine:**
-   - **BM25 Lexical Search:** Exact keyword, author, acronym, and theorem matching.
-   - **Dense Semantic Search:** Sentence-Transformers (`all-MiniLM-L6-v2`) + FAISS inner product indexing.
-   - **Reciprocal Rank Fusion (RRF):** Combines sparse lexical and dense semantic rankings ($k = 60$).
-   - **Neural Reranking:** Second-stage Cross-Encoder (`ms-marco-MiniLM-L-6-v2`) precision reranking.
-
-3. **Grounded Generation & Citation Tracking:**
-   - Strict academic prompts requiring citation tags (`[E1]`, `[E2]`).
-   - Grounded answering with citations linking directly to exact paper pages.
-
-4. **NLI Hallucination & Faithfulness Verification:**
-   - Answer decomposition into atomic claims.
-   - Cross-Encoder Natural Language Inference (`nli-deberta-v3-small`) checks whether claims are:
-     - 🟢 **Supported** (Entailment $\ge 0.60$)
-     - 🔴 **Contradicted** (Contradiction)
-     - 🟡 **Uncertain** (Neutral / Insufficient Evidence)
-   - Automatically flags answers containing hallucinations or ungrounded assertions.
-
-5. **Empirical Evaluation Dashboard:**
-   - Built-in IR evaluation harness computing **Hit@K**, **Recall@K**, **MRR@10**, **nDCG@K**, and **Latency**.
-   - Side-by-side retrieval matrix comparing all four paradigms on arbitrary queries.
+| Task | Pretrained Hugging Face Model | Description |
+|---|---|---|
+| **Named Entity Recognition (NER)** | `dslim/bert-base-NER` | Contextual token-level BERT model extracting scientific authors, organizations, locations, and academic entities with confidence scores. |
+| **Zero-Shot Paper Classification** | `cross-encoder/nli-deberta-v3-small` | Categorizes research papers into scientific disciplines and methodologies without requiring training data. |
+| **Question-Answering & QA Span Extraction** | `distilbert/distilbert-base-cased-distilled-squad` | Pinpoints precise evidence spans and answers directly from retrieved text chunks with exact confidence scores. |
+| **Abstractive Summarization** | `sshleifer/distilbart-cnn-12-6` | Generates concise, executive scientific summaries of research papers using Seq2Seq attention. |
+| **Dense Semantic Vector Search** | `sentence-transformers/all-MiniLM-L6-v2` | Maps passages to dense vector space for semantic FAISS cosine similarity retrieval. |
+| **Neural Cross-Encoder Reranking** | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Computes full cross-attention between queries and candidate passages to maximize Top-K precision. |
+| **NLI Hallucination & Evidence Verification** | `cross-encoder/nli-deberta-v3-small` | Decomposes answers into claims and verifies entailment against source paper passages. |
 
 ---
 
@@ -51,10 +35,10 @@
                         |                                           |
                         v                                           v
          +-----------------------------+             +-----------------------------+
-         |    NLP Feature Pipeline     |             |    Intra-Page Chunking      |
-         |  - TF-IDF Keywords          |             |  (Document + Page Metadata) |
-         |  - spaCy Named Entities     |             +-----------------------------+
-         |  - Extractive Summary       |                            |
+         | 🤗 Hugging Face Transformers|             |    Intra-Page Chunking      |
+         |  - dslim/bert-base-NER      |             |  (Document + Page Metadata) |
+         |  - DeBERTa Zero-Shot Clf    |             +-----------------------------+
+         |  - DistilBART Summarizer    |                            |
          +-----------------------------+                            v
                                                      +-----------------------------+
                                                      |    Dual-Index Retrieval     |
@@ -70,11 +54,13 @@
                                                                     v
                                                      +-----------------------------+
                                                      | Cross-Encoder Reranker      |
+                                                     | (ms-marco-MiniLM-L-6-v2)    |
                                                      +-----------------------------+
                                                                     |
                                                                     v
                                                      +-----------------------------+
-                                                     | Citation-Grounded Generator |
+                                                     | 🤗 HF QA Transformer Span   |
+                                                     | (distilbert-squad QA)       |
                                                      +-----------------------------+
                                                                     |
                                                                     v
@@ -97,11 +83,12 @@ ResearchMate/
 │   ├── __init__.py                # Package exports
 │   ├── pdf_processor.py           # Page-level PDF text & metadata extraction
 │   ├── text_preprocessing.py      # Scientific cleaning & intra-page chunker
-│   ├── ner_keywords.py            # TF-IDF keyword & spaCy NER extraction
-│   ├── summarizer.py              # Extractive & DistilBART summarization
+│   ├── ner_keywords.py            # Pretrained BERT-NER & TF-IDF keywords
+│   ├── classifier.py              # Pretrained DeBERTa Zero-Shot paper classifier
+│   ├── summarizer.py              # Extractive & DistilBART abstractive summarization
 │   ├── retriever.py               # BM25, Dense (FAISS), RRF, and Cross-Encoder
 │   ├── verifier.py                # DeBERTa NLI claim verification & hallucination guard
-│   ├── rag_pipeline.py            # Grounded citation generation pipeline
+│   ├── rag_pipeline.py            # HF Question-Answering Transformer & citations
 │   ├── evaluation.py              # Hit@K, Recall@K, MRR@10, nDCG@K metrics
 │   └── benchmark_data.py          # Grounded benchmark query generator
 ├── data/
@@ -110,6 +97,7 @@ ResearchMate/
 └── tests/
     └── test_full_pipeline.py      # End-to-end automated integration test
 ```
+
 
 ---
 
