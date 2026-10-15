@@ -174,7 +174,21 @@ with st.sidebar:
     with st.expander("⚙️ Chunking & Indexing Settings"):
         chunk_size = st.slider("Chunk size (words)", min_value=150, max_value=600, value=300, step=50)
         overlap = st.slider("Chunk overlap (words)", min_value=20, max_value=120, value=40, step=10)
-        use_neural_llm = st.checkbox("Enable Neural LLM (Local)", value=False, help="Requires ~3GB GPU/RAM")
+
+    # Google Gemini GenAI Settings
+    with st.expander("✨ Google Gemini GenAI (Recommended)", expanded=True):
+        default_key = st.session_state.get("gemini_api_key", os.environ.get("GEMINI_API_KEY", ""))
+        gemini_api_key_input = st.text_input(
+            "Gemini API Key:",
+            type="password",
+            value=default_key,
+            help="Enter your Google Gemini API key to enable Gemini GenAI reading comprehension and grounded synthesis."
+        )
+        if gemini_api_key_input:
+            st.session_state.gemini_api_key = gemini_api_key_input
+            st.success("✨ Gemini GenAI Active!")
+        else:
+            st.caption("ℹ️ Leave blank to use local neural models (`cross-encoder/ms-marco-MiniLM-L-6-v2`).")
 
     # Index button
     if st.button("🚀 Process & Build Index", type="primary", use_container_width=True) or (existing_pdfs and not st.session_state.chunks):
@@ -199,8 +213,7 @@ with st.sidebar:
 
                 # Initialize retriever & RAG
                 retriever = ResearchRetriever(all_chunks)
-                rag = ResearchRAG(retriever)
-                rag.use_neural_llm = use_neural_llm
+                rag = ResearchRAG(retriever, gemini_api_key=st.session_state.get("gemini_api_key"))
 
                 st.session_state.retriever = retriever
                 st.session_state.rag = rag
@@ -400,14 +413,18 @@ with tabs[2]:
                 "bm25": "BM25 (Keyword Lexical)"
             }[x]
         )
+    has_gemini = bool(st.session_state.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY"))
+    engine_options = ["gemini", "semantic_synthesizer", "seq2seq_transformer", "hf_transformer"] if has_gemini else ["semantic_synthesizer", "gemini", "seq2seq_transformer", "hf_transformer"]
+
     with qa_col3:
         engine_choice = st.selectbox(
             "QA Engine:",
-            ["hf_transformer", "synthesis", "neural_llm"],
+            engine_options,
             format_func=lambda x: {
-                "hf_transformer": "🤗 HF Transformer (DistilBERT SQuAD)",
-                "synthesis": "⚡ Sentence Synthesizer",
-                "neural_llm": "🤖 Generative Causal LM"
+                "gemini": "✨ Google Gemini (GenAI Comprehension - Recommended)",
+                "semantic_synthesizer": "🧠 Cross-Encoder Semantic Comprehension (Local)",
+                "seq2seq_transformer": "🤖 Local Generative Transformer (DistilBART)",
+                "hf_transformer": "🔍 Extractive Span Reader (DistilBERT SQuAD)"
             }[x]
         )
 
@@ -421,7 +438,8 @@ with tabs[2]:
                 retrieval_method=method_choice,
                 engine=engine_choice,
                 top_k=3,
-                verify=verify_claims_toggle
+                verify=verify_claims_toggle,
+                gemini_api_key=st.session_state.get("gemini_api_key")
             )
 
         st.markdown("---")

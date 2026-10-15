@@ -56,13 +56,42 @@ def verify_claim(claim: str, evidence: str, threshold: float = 0.65) -> Dict[str
             "raw_label": "empty"
         }
 
+    # 1. Fast direct containment / high lexical overlap check
+    clean_claim = re.sub(r'[^\w\s]', '', claim.lower()).strip()
+    clean_evidence = re.sub(r'[^\w\s]', '', evidence.lower())
+    if clean_claim and clean_claim in clean_evidence:
+        return {
+            "claim": claim,
+            "label": "supported",
+            "confidence": 0.999,
+            "raw_label": "exact_entailment"
+        }
+
+    # 2. Localize the most relevant context window in evidence
+    evidence_sentences = re.split(r'(?<=[.!?])\s+', evidence)
+    claim_words = set(re.findall(r'\b\w{4,}\b', claim.lower()))
+    
+    best_sent = ""
+    best_overlap = 0
+    for s in evidence_sentences:
+        s_words = set(re.findall(r'\b\w{4,}\b', s.lower()))
+        overlap = len(claim_words & s_words)
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_sent = s.strip()
+
+    # Use the best matching sentence or slice around it as premise
+    if best_sent and len(best_sent) > 20:
+        premise = best_sent[:600]
+    else:
+        premise = evidence[:800]
+
     classifier = get_verifier()
 
     # NLI convention: premise = evidence, hypothesis = claim
-    # Truncate evidence to ~1400 chars (~300 tokens) to guarantee < 512 tokens total
     try:
         result = classifier({
-            "text": evidence[:1400],
+            "text": premise,
             "text_pair": claim[:350]
         })
         if isinstance(result, list):
@@ -115,36 +144,54 @@ def verify_answer(answer: str, passages: List[Dict[str, Any]], threshold: float 
     contradicted_count = 0
 
     for claim in claims:
-        best_label = "uncertain"
-        best_confidence = 0.0
-        best_raw = "neutral"
+        found_supported = False
+        best_supported_conf = 0.0
+        best_contradicted_conf = 0.0
+        highest_conf = 0.0
+        highest_raw = "neutral"
 
         for p in passages:
             evidence_text = p.get("text", "")
             res = verify_claim(claim, evidence_text, threshold=threshold)
-            if res["label"] == "supported" and res["confidence"] > best_confidence:
-                best_label = "supported"
-                best_confidence = res["confidence"]
-                best_raw = res["raw_label"]
-                break
-            elif res["label"] == "contradicted" and best_label != "supported":
-                best_label = "contradicted"
-                best_confidence = res["confidence"]
-                best_raw = res["raw_label"]
-            elif res["confidence"] > best_confidence:
-                best_confidence = res["confidence"]
-                best_raw = res["raw_label"]
+            c_conf = res.get("confidence", 0.0)
+            c_label = res.get("label", "uncertain")
+
+            if c_label == "supported":
+                found_supported = True
+                if c_conf > best_supported_conf:
+                    best_supported_conf = c_conf
+                break  # Verified by at least one cited passage
+            elif c_label == "contradicted":
+                if c_conf > best_contradicted_conf:
+                    best_contradicted_conf = c_conf
+
+            if c_conf > highest_conf:
+                highest_conf = c_conf
+                highest_raw = res.get("raw_label", "neutral")
+
+        if found_supported:
+            final_label = "supported"
+            final_conf = best_supported_conf
+            final_raw = "entailment"
+        elif best_contradicted_conf > 0:
+            final_label = "contradicted"
+            final_conf = best_contradicted_conf
+            final_raw = "contradiction"
+        else:
+            final_label = "uncertain"
+            final_conf = highest_conf
+            final_raw = highest_raw
 
         claim_results.append({
             "claim": claim,
-            "label": best_label,
-            "confidence": round(best_confidence, 4),
-            "raw_label": best_raw
+            "label": final_label,
+            "confidence": round(final_conf, 4),
+            "raw_label": final_raw
         })
 
-        if best_label == "supported":
+        if final_label == "supported":
             supported_count += 1
-        elif best_label == "contradicted":
+        elif final_label == "contradicted":
             contradicted_count += 1
 
     total = len(claims)
