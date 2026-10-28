@@ -39,96 +39,188 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for modern styling
+# ==========================================================
+# Direct Gemini API Configuration (gemini-api-dev)
+# ==========================================================
+# Configure your Gemini API key directly here or pass via GEMINI_API_KEY env variable
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+
+# Custom CSS for modern Generative UI aesthetic
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    /* Gradient Brand Header */
     .main-header {
-        font-size: 2.2rem;
-        font-weight: 700;
-        background: linear-gradient(90deg, #1E3A8A, #3B82F6, #10B981);
+        font-size: 2.3rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 40%, #8b5cf6 70%, #10b981 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 0.2rem;
-    }
-    .hf-badge {
-        display: inline-block;
-        background-color: #FEF3C7;
-        color: #92400E;
-        padding: 3px 10px;
-        border-radius: 6px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        border: 1px solid #FCD34D;
-        margin-bottom: 8px;
-    }
-    .model-pill {
-        background-color: #EEF2FF;
-        color: #4338CA;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        border: 1px solid #C7D2FE;
+        margin-bottom: 0.25rem;
+        letter-spacing: -0.025em;
     }
 
     .sub-header {
-        color: #4B5563;
-        font-size: 1.05rem;
-        margin-bottom: 1.5rem;
+        color: #64748b;
+        font-size: 1.0rem;
+        margin-bottom: 1.6rem;
+        font-weight: 450;
     }
-    .metric-card {
-        background-color: #F8FAFC;
-        border-radius: 10px;
-        padding: 15px;
-        border: 1px solid #E2E8F0;
-        text-align: center;
+
+    /* Modern Card Container */
+    .ui-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .retrieval-box {
-        background-color: #F8FAFC;
+    .ui-card:hover {
+        box-shadow: 0 8px 30px -4px rgba(15, 23, 42, 0.08);
+    }
+
+    /* Badges & Pills */
+    .hf-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background-color: #fef3c7;
+        color: #92400e;
+        padding: 4px 10px;
         border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 12px;
-        border-left: 4px solid #3B82F6;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border: 1px solid #fde68a;
+        margin-bottom: 8px;
     }
-    .citation-badge {
-        display: inline-block;
-        background-color: #DBEAFE;
-        color: #1E40AF;
-        padding: 2px 8px;
+
+    .model-pill {
+        background-color: #eef2ff;
+        color: #4338ca;
+        padding: 3px 10px;
         border-radius: 12px;
-        font-size: 0.82rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        margin-right: 5px;
+        border: 1px solid #c7d2fe;
     }
-    .status-supported {
-        background-color: #D1FAE5;
-        color: #065F46;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-weight: 600;
+
+    .badge-entity {
         display: inline-block;
+        padding: 3px 9px;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background-color: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+        margin: 2px 4px 4px 0;
+    }
+
+    /* Evidence & Citation Box */
+    .retrieval-box {
+        background-color: #f8fafc;
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 12px;
+        border-left: 4px solid #3b82f6;
+        border-top: 1px solid #f1f5f9;
+        border-right: 1px solid #f1f5f9;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .citation-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #3b82f6;
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-top: 10px;
+        font-size: 0.88rem;
+    }
+
+    .citation-tag {
+        display: inline-block;
+        background: #dbeafe;
+        color: #1e40af;
+        padding: 2px 7px;
+        border-radius: 6px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.78rem;
+        font-weight: 700;
+        margin-right: 6px;
+    }
+
+    /* Verification Status Pills */
+    .status-supported {
+        background-color: #d1fae5;
+        color: #065f46;
+        padding: 6px 14px;
+        border-radius: 9999px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #6ee7b7;
     }
     .status-uncertain {
-        background-color: #FEF3C7;
-        color: #92400E;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-weight: 600;
-        display: inline-block;
+        background-color: #fef3c7;
+        color: #92400e;
+        padding: 6px 14px;
+        border-radius: 9999px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #fcd34d;
     }
     .status-contradicted {
-        background-color: #FEE2E2;
-        color: #991B1B;
-        padding: 6px 12px;
-        border-radius: 6px;
+        background-color: #fee2e2;
+        color: #991b1b;
+        padding: 6px 14px;
+        border-radius: 9999px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #fca5a5;
+    }
+
+    /* Streamlit Tab and Button Polish */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: #f8fafc;
+        padding: 6px;
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 10px;
+        padding: 8px 16px;
         font-weight: 600;
-        display: inline-block;
+        font-size: 0.88rem;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #ffffff !important;
+        color: #2563eb !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
 </style>
 """, unsafe_allow_html=True)
 
 
 # Initialize Session State
+if "gemini_api_key" not in st.session_state:
+    st.session_state.gemini_api_key = GEMINI_API_KEY
 if "pdf_data" not in st.session_state:
     st.session_state.pdf_data = {}  # {filename: {"pages": [...], "info": {...}}}
 if "chunks" not in st.session_state:
@@ -175,20 +267,25 @@ with st.sidebar:
         chunk_size = st.slider("Chunk size (words)", min_value=150, max_value=600, value=300, step=50)
         overlap = st.slider("Chunk overlap (words)", min_value=20, max_value=120, value=40, step=10)
 
-    # Google Gemini GenAI Settings
-    with st.expander("✨ Google Gemini GenAI (Recommended)", expanded=True):
-        default_key = st.session_state.get("gemini_api_key", os.environ.get("GEMINI_API_KEY", ""))
-        gemini_api_key_input = st.text_input(
-            "Gemini API Key:",
-            type="password",
-            value=default_key,
-            help="Enter your Google Gemini API key to enable Gemini GenAI reading comprehension and grounded synthesis."
-        )
-        if gemini_api_key_input:
-            st.session_state.gemini_api_key = gemini_api_key_input
-            st.success("✨ Gemini GenAI Active!")
-        else:
-            st.caption("ℹ️ Leave blank to use local neural models (`cross-encoder/ms-marco-MiniLM-L-6-v2`).")
+    # Google Gemini GenAI Status (configured directly via code)
+    if GEMINI_API_KEY:
+        st.markdown("""
+        <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:12px; padding:10px 14px; margin-top:10px; margin-bottom:12px;">
+            <div style="font-weight:700; color:#065f46; font-size:0.84rem; display:flex; align-items:center; gap:6px;">
+                <span>✨</span> Gemini 3.8 Flash Active
+            </div>
+            <div style="font-size:0.75rem; color:#047857; margin-top:2px;">Direct API configuration active</div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="background:#fef3c7; border:1px solid #fde68a; border-radius:12px; padding:10px 14px; margin-top:10px; margin-bottom:12px;">
+            <div style="font-weight:700; color:#92400e; font-size:0.84rem;">
+                ℹ️ Local Neural Models Active
+            </div>
+            <div style="font-size:0.75rem; color:#b45309; margin-top:2px;">Using Cross-Encoder / DeBERTa</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Index button
     if st.button("🚀 Process & Build Index", type="primary", use_container_width=True) or (existing_pdfs and not st.session_state.chunks):
@@ -308,8 +405,11 @@ with tabs[0]:
             st.markdown("#### 🏷️ Salient Keywords (TF-IDF)")
             keywords = extract_keywords([c["text"] for c in doc_chunks], top_k=12)
             if keywords:
-                kw_df = pd.DataFrame(keywords)
-                st.dataframe(kw_df, use_container_width=True, hide_index=True)
+                kw_html = " ".join([f'<span class="badge-entity" style="background:#eff6ff; color:#1e40af; border-color:#bfdbfe;">#{k["keyword"]}</span>' for k in keywords[:12]])
+                st.markdown(f'<div style="margin-bottom:8px;">{kw_html}</div>', unsafe_allow_html=True)
+                with st.expander("View Keywords Table", expanded=False):
+                    kw_df = pd.DataFrame(keywords)
+                    st.dataframe(kw_df, use_container_width=True, hide_index=True)
 
         with c_right:
             st.markdown("#### 🔬 Named Entities Recognition")
@@ -327,8 +427,11 @@ with tabs[0]:
                 entities = extract_entities(all_text_sample, top_k=15, method="spacy")
 
             if entities:
-                ent_df = pd.DataFrame(entities)
-                st.dataframe(ent_df, use_container_width=True, hide_index=True)
+                badges_html = " ".join([f'<span class="badge-entity">{e["entity"]} <span style="opacity:0.75; font-size:0.7rem;">({e.get("type", "NER")})</span></span>' for e in entities[:15]])
+                st.markdown(f'<div style="margin-bottom:8px;">{badges_html}</div>', unsafe_allow_html=True)
+                with st.expander("View Entities Table", expanded=False):
+                    ent_df = pd.DataFrame(entities)
+                    st.dataframe(ent_df, use_container_width=True, hide_index=True)
             else:
                 st.info("No salient named entities detected.")
 
@@ -365,15 +468,22 @@ with tabs[1]:
             m_name = methods[idx]
             res_list = all_res[m_name]
 
+            method_icons = {
+                "BM25": "📝 BM25 (Lexical)",
+                "Dense": "🌐 Dense (FAISS)",
+                "Hybrid": "⚡ Hybrid (RRF)",
+                "Hybrid + Rerank": "⭐ Cross-Encoder"
+            }
             with col:
-                st.markdown(f"### {m_name}")
+                st.markdown(f"#### {method_icons.get(m_name, m_name)}")
                 if not res_list:
                     st.warning("No matches found.")
                 for rank, item in enumerate(res_list, start=1):
-                    with st.expander(f"#{rank} [p.{item['page']}] Score: {item['score']}", expanded=(rank == 1)):
-                        st.markdown(f"**Doc:** `{item['document']}`")
-                        st.markdown(f"**Page:** `{item['page']}` | **Chunk:** `{item['chunk_id']}`")
-                        st.write(item["text"])
+                    badge_style = "background:#dbeafe; color:#1e40af;" if rank == 1 else "background:#f1f5f9; color:#475569;"
+                    with st.expander(f"#{rank} [Page {item['page']}] Score: {item['score']}", expanded=(rank == 1)):
+                        st.markdown(f'<span style="padding:2px 8px; border-radius:6px; font-size:0.75rem; font-weight:700; {badge_style}">Rank #{rank}</span> <span style="font-size:0.8rem; color:#64748b;">Chunk #{item["chunk_id"]}</span>', unsafe_allow_html=True)
+                        st.markdown(f"**Document:** `{item['document']}`")
+                        st.markdown(f'<div class="retrieval-box" style="margin-top:6px; font-size:0.88rem; line-height:1.6;">{item["text"]}</div>', unsafe_allow_html=True)
 
 
 # ==========================================================
@@ -408,7 +518,7 @@ with tabs[2]:
             "QA Engine:",
             engine_options,
             format_func=lambda x: {
-                "gemini": "✨ Google Gemini (GenAI Comprehension - Recommended)",
+                "gemini": "✨ Google Gemini (gemini-3.8-flash - Recommended)",
                 "semantic_synthesizer": "🧠 Cross-Encoder Semantic Comprehension (Local)",
                 "seq2seq_transformer": "🤖 Local Generative Transformer (DistilBART)",
                 "hf_transformer": "🔍 Extractive Span Reader (DistilBERT SQuAD)"
@@ -445,7 +555,13 @@ with tabs[2]:
             if conf > 0:
                 st.markdown(f'<span class="model-pill">🎯 Span Confidence: {conf:.1%}</span>', unsafe_allow_html=True)
 
-        st.markdown(f"> {result['answer']}")
+        st.markdown(f"""
+        <div class="ui-card" style="border-left: 4px solid #3b82f6; background: #ffffff; padding: 18px; margin-top: 10px;">
+            <div style="font-size: 0.96rem; line-height: 1.7; color: #1e293b;">
+                {result['answer']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         if span:
             with st.expander("🔍 Extracted Evidence Span Details"):

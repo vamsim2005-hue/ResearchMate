@@ -187,17 +187,18 @@ def generate_gemini_answer(
     question: str,
     passages: List[Dict[str, Any]],
     api_key: Optional[str] = None,
-    model_name: str = "gemini-2.5-flash"
+    model_name: str = "gemini-3.8-flash"
 ) -> Dict[str, Any]:
     """
     Generates an evidence-grounded academic answer using Google Gemini Generative AI (via google.genai).
+    Uses current Gemini models (gemini-3.8-flash / gemini-3.5-flash-lite) per gemini-api-dev guidelines.
     Produces complete, well-reasoned answers referencing exact citations [E1], [E2].
     """
     resolved_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 
     if not resolved_key or not resolved_key.strip():
         return {
-            "answer": "Gemini API Key is not configured. Please enter your Gemini API Key in the left sidebar to enable Gemini Generative Comprehension, or select '🧠 Cross-Encoder Semantic Comprehension (Local)'.",
+            "answer": "Gemini API Key is not configured. Please set GEMINI_API_KEY in the code or environment.",
             "confidence": 0.0,
             "model": "Google Gemini (Key Missing)"
         }
@@ -241,13 +242,13 @@ def generate_gemini_answer(
             )
             ans_text = response.text.strip()
         except Exception:
-            # Fallback to gemini-1.5-flash if gemini-2.5-flash is not available in region
+            # Fallback to gemini-3.5-flash-lite if gemini-3.8-flash has quota/rate limits
+            model_name = "gemini-3.5-flash-lite"
             response = client.models.generate_content(
-                model="gemini-1.5-flash",
+                model=model_name,
                 contents=prompt
             )
             ans_text = response.text.strip()
-            model_name = "gemini-1.5-flash"
 
         return {
             "answer": ans_text,
