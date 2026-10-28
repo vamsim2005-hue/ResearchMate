@@ -338,7 +338,7 @@ def extract_qa_transformer(
             "confidence": 0.0,
             "best_passage_idx": None,
             "extracted_span": "",
-            "model": f"Hugging Face ({model_name})"
+            "model": f"Neural Model ({model_name})"
         }
 
     tokenizer, model = get_qa_pipeline(model_name)
@@ -438,7 +438,7 @@ def extract_qa_transformer(
             "confidence": round(float(best_score), 4),
             "best_passage_idx": best_idx,
             "extracted_span": best_answer,
-            "model": f"Hugging Face ({model_name})"
+            "model": f"Neural Model ({model_name})"
         }
     else:
         # Graceful fallback to Cross-Encoder Semantic Comprehension
@@ -604,7 +604,7 @@ class ResearchRAG:
                     qa_meta = sem_res
             except Exception as e:
                 raw_answer = self.synthesize_fallback_answer(question, passages)
-                qa_meta = {"error": str(e), "model": f"Hugging Face ({self.qa_model_name})"}
+                qa_meta = {"error": str(e), "model": f"Neural Model ({self.qa_model_name})"}
 
         else:
             raw_answer = self.synthesize_fallback_answer(question, passages)

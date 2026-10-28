@@ -154,7 +154,7 @@ def extract_entities_transformer(
                         "label": label,
                         "count": 0,
                         "total_score": 0.0,
-                        "model": "Hugging Face (BERT-NER)"
+                        "model": "Neural Model (BERT-NER)"
                     }
                 entity_records[key]["count"] += 1
                 entity_records[key]["total_score"] += score
@@ -172,7 +172,7 @@ def extract_entities_transformer(
             "label": rec["label"],
             "count": rec["count"],
             "confidence": round(avg_score, 4),
-            "model": "Hugging Face (BERT-NER)"
+            "model": "Neural Model (BERT-NER)"
         })
 
     # Sort by frequency, then confidence

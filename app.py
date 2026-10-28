@@ -222,19 +222,6 @@ with st.sidebar:
     if st.session_state.chunks:
         st.info(f"📊 **Active Corpus:**\n- Papers: {len(st.session_state.pdf_data)}\n- Total Chunks: {len(st.session_state.chunks)}")
 
-    st.markdown("---")
-    with st.expander("🤗 Hugging Face Models Active", expanded=True):
-        st.markdown("""
-        **Pretrained Models Powering ResearchMate:**
-        - 🏷️ **Token NER:** `dslim/bert-base-NER`
-        - 🎯 **Zero-Shot:** `nli-deberta-v3-small`
-        - 💡 **Extractive QA:** `distilbert-squad`
-        - 📝 **Summarization:** `distilbart-cnn-12-6`
-        - 🛡️ **NLI Verifier:** `nli-deberta-v3-small`
-        - 🧠 **Dense Embeddings:** `all-MiniLM-L6-v2`
-        - ⚡ **Reranker:** `ms-marco-MiniLM-L-6-v2`
-        """)
-
 
 
 # Header
@@ -280,11 +267,11 @@ with tabs[0]:
 
         # Zero-Shot Transformer Paper Classification
         st.markdown("### 🎯 Zero-Shot Academic Classification")
-        st.caption("Powered by Pretrained Hugging Face DeBERTa (`cross-encoder/nli-deberta-v3-small`)")
+        st.caption("Powered by DeBERTa (`cross-encoder/nli-deberta-v3-small`)")
 
         class_cache_key = f"classification_{selected_paper}"
         if class_cache_key not in st.session_state:
-            with st.spinner("Classifying paper discipline & methodology with Hugging Face Zero-Shot DeBERTa..."):
+            with st.spinner("Classifying paper discipline & methodology with Zero-Shot DeBERTa..."):
                 st.session_state[class_cache_key] = classify_paper(pages)
 
         clf_data = st.session_state[class_cache_key]
@@ -306,7 +293,7 @@ with tabs[0]:
 
         with c_left:
             st.markdown("#### 📝 Executive Paper Summary")
-            st.markdown('<span class="hf-badge">🤗 Hugging Face distilbart-cnn-12-6</span>', unsafe_allow_html=True)
+            st.markdown('<span class="hf-badge">distilbart-cnn-12-6</span>', unsafe_allow_html=True)
             summary_type = st.radio("Summary Mode:", ["Fast Extractive", "Neural Abstractive (DistilBART)"], horizontal=True)
 
             if summary_type == "Fast Extractive":
@@ -328,13 +315,13 @@ with tabs[0]:
             st.markdown("#### 🔬 Named Entities Recognition")
             ner_mode = st.radio(
                 "NER Model:",
-                ["🤗 Pretrained Transformer (dslim/bert-base-NER)", "spaCy (Statistical)"],
+                ["Neural Model (dslim/bert-base-NER)", "spaCy (Statistical)"],
                 horizontal=True
             )
 
             all_text_sample = " ".join([p["text"] for p in pages[:4]])
-            if "Transformer" in ner_mode:
-                with st.spinner("Extracting entities with Hugging Face BERT-NER..."):
+            if "Neural Model" in ner_mode or "dslim" in ner_mode:
+                with st.spinner("Extracting entities with BERT-NER..."):
                     entities = extract_entities_transformer(all_text_sample, top_k=15)
             else:
                 entities = extract_entities(all_text_sample, top_k=15, method="spacy")
@@ -447,7 +434,7 @@ with tabs[2]:
         
         # Display engine badge & confidence if available
         meta = result.get("qa_metadata", {})
-        model_name = meta.get("model", "Hugging Face Transformer")
+        model_name = meta.get("model", "Neural Model")
         conf = meta.get("confidence", 0.0)
         span = meta.get("extracted_span", "")
         

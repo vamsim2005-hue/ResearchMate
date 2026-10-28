@@ -136,7 +136,7 @@ def classify_paper(
     )
 
     return {
-        "model": f"Hugging Face ({model_name})",
+        "model": f"Neural Model ({model_name})",
         "primary_discipline": discipline_res["top_label"],
         "discipline_confidence": discipline_res["top_score"],
         "disciplines": discipline_res["ranking"],
